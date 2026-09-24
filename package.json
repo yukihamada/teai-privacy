@@ -1,0 +1,18 @@
+{
+  "name": "teai-privacy",
+  "version": "0.1.0",
+  "description": "Inspect text before it reaches your AI backend. Self-hosted on Cloudflare Workers.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "exports": { ".": "./src/core.js", "./worker": "./src/worker.js" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:runtime": "node --test test/runtime/*.test.js",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "dev": "wrangler dev",
+    "check": "npm test && npm run build && npm run test:runtime"
+  },
+  "devDependencies": { "miniflare": "5.20260921.0-alpha", "wrangler": "4.137.0" }
+}

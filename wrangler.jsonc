@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "teai-privacy",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "limits": { "cpu_ms": 50 },
+  "vars": { "UPSTREAM_BASE_URL": "https://api.teai.io/v1" }
+}
