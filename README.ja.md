@@ -22,6 +22,43 @@
 
 **完全な匿名化ではありません。** 氏名・住所は明示的な語句設定が必要です。難読化・符号化された秘密情報、未対応形式、文脈から特定できる情報は検出できない場合があります。モデルの応答自体は検査せず通します。
 
+## v0.2：端末側クライアント・CLI
+
+**ネットワークへ送る前に端末内で検査**します。Node 22以降・ブラウザ向けのJSクライアントと、標準入力から読むCLIを追加しました。検出したキーは端末で停止し、置換後のリクエストだけを送ります。ライブラリ/CLIであり、Sente自動組み込み・チャット画面ではありません。
+
+```js
+import { createPrivacyClient } from './src/client.js';
+const client = createPrivacyClient({
+  baseURL: 'https://your-gateway.example/v1',
+  apiKey: gatewayToken, // 実行時に渡す。公開アプリに共用キーを埋め込まない
+  terms: ['指定する氏名'],
+});
+const input = { model: 'your-supported-model', messages: [
+  { role: 'user', content: 'alice@example.com への返信を書いて' },
+] };
+const preview = client.inspect(input); // 通信なし。置換後本文・件数
+const { response, counts } = await client.complete(input); // 再検査して送信
+const answer = await response.json();
+```
+
+SSEは `stream: true` で `response.body` を読み、不要になったらcancel。`complete(input, { signal })` で中断できます。通信からストリーム終端まで既定120秒。再試行・後段エラーの原文表示なし。検査済み本文にも未検出情報が残りうるので公開ログへ出さないでください。
+
+```sh
+# 原文JSONを標準入力から渡す。原文をコマンド引数に入れない。
+node bin/teai-privacy.js inspect --lang=ja < input.json
+# PRIVACY_BASE_URL / PRIVACY_API_KEY は事前に安全な方法で環境変数へ。
+# 任意の PRIVACY_TERMS はJSON配列。出力はJSONまたは生SSE。
+node bin/teai-privacy.js send --lang=ja < input.json
+```
+
+自分のゲートウェイ、または互換HTTPS `/v1` APIへ直接接続できます。認証用のキーはヘッダーで意図的に送信し、本文に紛れたキーとは区別します。ブラウザは**同一オリジン、または適切なCORSを許可するAPI**が必要です。同梱WorkerのCORSは無効のまま。公開ページへ共用APIキーを埋め込まないでください。Cookie/Refererは送信しませんが、悪意ある拡張・ページ・Service Workerによる原文読取までは防ぎません。
+
+ローカルテスト限定で `allowLoopbackHTTP: true` にすると `localhost`・`127.0.0.1`・`[::1]` のHTTPを許可。それ以外はHTTPS必須。クライアント自体はサーバーやプロキシを起動しません。
+
+**実測**：共通コアのメール検出を高速化。M5 Max/Node 25.8.2、固定合成入力・各180回のp50で、通常32KB **0.439→0.188ms**、連続英字250KB **31.320→1.522ms**。PII密集入力は約1.09倍、末尾キー停止は約2.5%遅く、全ケース一律の改善ではありません。
+
+実ローカルHTTPでクライアントの32KB追加遅延は中央値差 **約0.236ms**。モデル・インターネットは含みません。[条件・生データ・再現手順](bench/README.md)。
+
 ## 自分のCloudflareへ配置
 
 1. このリポジトリをFork。Node 22以降で `npm ci && npm run check`。
@@ -52,7 +89,7 @@ const { body, counts } = protectChat({
 // bodyだけを送信する。原文をログに出さない。
 ```
 
-Web Crypto対応のブラウザ・Node 22以降・Workersで利用できます。これはライブラリの使用例で、Senteやブラウザへの組み込み済み機能ではありません。npm配布は行わず、タグ付きソースを利用します。
+Web Crypto対応のブラウザ・Node 22以降・Workersで利用できます。検査と送信を一体化する場合は上記クライアントを使用します。Senteへの自動組み込みはありません。npm配布は行わず、タグ付きソースを利用します。
 
 原文はランダムな `[PRIVATE_<乱数>_EMAIL_1]` 等に置換。同じリクエスト内では同じ値が同じ識別子になります。**回答で元に戻しません。** 対応表の永続保存もありません。`x-teai-privacy-replacements` は異なる置換値の個数で、検出率ではありません。
 
@@ -68,4 +105,4 @@ Web Crypto対応のブラウザ・Node 22以降・Workersで利用できます�
 
 **Cloudflare上で検査する場合、原文はCloudflareとそのWorker運営者の信頼範囲に届きます。** 端末外に原文を出したくない場合は、コアを端末で実行する必要があります。文脈による再識別や検出漏れがあるため、匿名化の法的保証・完全秘匿を意味しません。
 
-検証：`npm ci && npm run check && npm audit`。合成データ・疑似APIだけを使い、有料モデルには接続しません。詳しくは[脅威モデル](SECURITY.md)と[検証記録](RELEASE.md)。
+検証：`npm ci && npm run check && npm run test:browser && npm audit`。ブラウザテストはインストール済みChromeを使用（必要ならCHROME_PATHを設定）。合成データ・疑似APIだけを使い、有料モデルには接続しません。詳しくは[脅威モデル](SECURITY.md)と[検証記録](RELEASE.md)。

@@ -11,7 +11,7 @@ test('real Cloudflare workerd: health, unauthorized and fail-closed inspection',
   } });
   try {
     const health = await server.fetch('http://localhost/health');
-    assert.equal(health.status, 200); assert.equal((await health.json()).version, '0.1.0');
+    assert.equal(health.status, 200); assert.equal((await health.json()).version, '0.2.0');
     const unauthorized = await server.fetch('http://localhost/v1/chat/completions', { method: 'POST', body: '{}' });
     assert.equal(unauthorized.status, 401);
     const protectedResponse = await server.fetch('http://localhost/v1/chat/completions', { method: 'POST', headers: { authorization: 'Bearer ' + 'fixture-runtime-token-'.repeat(3), 'content-type': 'application/json' }, body: JSON.stringify({ model: 'test', messages: [{ role: 'user', content: 'sk-' + 'a'.repeat(32) }] }) });

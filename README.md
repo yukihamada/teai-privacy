@@ -23,6 +23,48 @@ Your client → your Cloudflare Worker → teai / compatible text-chat backend
 
 **Not complete anonymization.** Names/addresses require explicit terms. Obfuscated/encoded secrets, unsupported formats and information inferred from context can escape detection. Outputs are passed through, not inspected. Read [SECURITY.md](SECURITY.md).
 
+## v0.2: client-side protection
+
+Inspect **on the device, before the network call**. The JS client works in Node 22+ and modern browsers; the CLI reads JSON from stdin. Recognized secrets block locally. Only the sanitized request is sent. This is a library/CLI, not an automatically installed Sente extension or full chat UI.
+
+```js
+import { createPrivacyClient } from './src/client.js';
+const client = createPrivacyClient({
+  baseURL: 'https://your-gateway.example/v1',
+  apiKey: gatewayToken, // provide at runtime; never embed a shared secret in a public app
+  terms: ['Example Person'],
+});
+const input = { model: 'your-supported-model', messages: [
+  { role: 'user', content: 'Reply to alice@example.com' },
+] };
+const preview = client.inspect(input); // no network; body and replacement counts
+const { response, counts } = await client.complete(input); // inspects again, then sends
+const answer = await response.json();
+```
+
+For SSE, set `stream: true` and consume `response.body`, or cancel it when finished. Pass `{ signal }` as the second argument to `complete` to abort. The total network/stream deadline defaults to 120 seconds. No automatic retries or raw upstream error messages. `inspect()` returns sanitized text that can still contain undetected sensitive data; do not treat it as safe for public logging.
+
+### CLI
+
+```sh
+# input.json is a text-chat request. stdin avoids putting prompts in shell history.
+node bin/teai-privacy.js inspect < input.json
+# Set PRIVACY_BASE_URL / PRIVACY_API_KEY securely in the environment beforehand.
+# Optional PRIVACY_TERMS is a JSON string array. Output is backend JSON or raw SSE.
+node bin/teai-privacy.js send < input.json
+node bin/teai-privacy.js inspect --lang=ja < input.json
+```
+
+The client can target your gateway or a compatible HTTPS `/v1` backend directly. A direct-backend token is intentionally sent as the authorization header; credentials accidentally present in the prompt are inspected separately. Browsers need **same-origin hosting or an endpoint with appropriate CORS**. The supplied gateway still has no cross-origin CORS support. Never hardcode a shared gateway/upstream key into public browser assets. Browser cookies and referrer are omitted. A browser/service worker, extension or compromised page can still read original input.
+
+Local testing only: `allowLoopbackHTTP: true` permits HTTP to literal `localhost`, `127.0.0.1`, `[::1]`; all other destinations require HTTPS. No local server or proxy is started by the client.
+
+### Measured performance
+
+The common core's email scanner now checks bounded regions around `@` instead of retrying at every character. Fixed synthetic corpus, same baseline and optimized process, 180 samples per case. On one M5 Max / Node 25.8.2 run: **32 KB plain text 0.439 → 0.188 ms**, pathological 250 KB repeated letters **31.320 → 1.522 ms** (p50). Dense PII improved only 1.09×; secret-at-end rejection was 2.5% slower. Not a universal speedup claim.
+
+Client + real local HTTP test: 32 KB added about **0.236 ms** (difference of p50s against already-sanitized direct requests). No model or internet latency included. [Full results, raw samples and reproduction](bench/README.md).
+
 ## Deploy to your Cloudflare account
 
 1. Fork this repository. Use Node 22+, then `npm ci && npm run check`.
@@ -65,7 +107,7 @@ const { body, counts } = protectChat({
 // Send only `body`. Never log the original input.
 ```
 
-The core uses Web Crypto and works in modern browsers, Node 22+ and Workers. This library example is not an installed Sente/browser integration. `package.json` is private to avoid accidental npm publication; consume the tagged source.
+The core uses Web Crypto and works in modern browsers, Node 22+ and Workers. Use the client above to combine inspection and sending. No automatic Sente integration. `package.json` is private to avoid accidental npm publication; consume the tagged source.
 
 ## Compatibility and limits
 
@@ -83,6 +125,7 @@ The core uses Web Crypto and works in modern browsers, Node 22+ and Workers. Thi
 npm ci
 npm run check       # adversarial/unit tests, bundle, real local workerd tests
 npm audit
+npm run test:browser # installed Google Chrome; set CHROME_PATH if needed
 ```
 
 Tests use synthetic credentials and a fake upstream; no paid model calls. Do not use real customer data in issues, tests, CI or screenshots. See [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -90,5 +90,5 @@ test('configured exact terms stay at the gateway and response is not restored', 
 });
 test('Workers fetch signature does not mistake ExecutionContext for a fetch function', async () => {
   const response = await worker.fetch(new Request('https://gateway.example/health'), env, {});
-  assert.equal((await response.json()).version, '0.1.0');
+  assert.equal((await response.json()).version, '0.2.0');
 });

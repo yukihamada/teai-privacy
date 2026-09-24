@@ -2,6 +2,10 @@
 
 ## Trust boundary
 
+v0.2 client: `createPrivacyClient().complete()` inspects a local snapshot before fetch. Detected values are therefore removed/blocked before Cloudflare too. Missed identifiers, context and transport metadata still leave the device. This is not protection against a compromised host/page, browser extension/service worker or an untrusted injected fetch implementation. The client adds no storage or telemetry. CLI inspect explicitly writes sanitized text to stdout; model responses are unfiltered. Both can contain undetected personal data.
+
+The credential configured as `apiKey` is deliberately sent to the configured destination for authentication. It is not covered by prompt redaction. Client errors are generic; consumption/cancellation of response streams is the caller's responsibility. Modern browser use requires secure-context Web Crypto and same-origin/CORS access. Public browser assets must not contain shared API credentials.
+
 The aim is to reduce **accidental text disclosure** to an inference backend. This is not encryption, formal anonymization, a comprehensive DLP system, or a defense against a malicious sender deliberately encoding a secret.
 
 Cloudflare terminates TLS and executes your Worker. Its infrastructure and the Worker account owner are trusted with the original body. An operator can modify code, enable logging, or deploy a different build. Publishing source does not attest that a hosted service runs it. Use your own account and review deployment hashes.
@@ -29,6 +33,8 @@ Request authentication before reading the body; actual streamed byte cap; fixed 
 Use GitHub private vulnerability reporting on this repository. If unavailable, email `mail@yukihamada.jp` with a synthetic reproduction. Do not send real credentials, personal data or private prompts. No independent security audit or bug bounty is claimed.
 
 ## 日本語要約
+
+v0.2クライアントは端末内で検査してから送信するため、検出済み情報はCloudflareにも送られません。未検出情報・文脈・通信メタデータは送信されます。端末/ページ/拡張/Service Worker自体の侵害は対象外。認証キーは設定した接続先へヘッダーで送ります。CLIの検査出力も完全匿名ではなく、応答は未検査です。
 
 目的はAIへの**うっかり送信を減らすこと**です。暗号化・完全匿名化・網羅的DLPではありません。原文を扱うCloudflareとWorker運営者を信頼する必要があります。OSS公開だけでは稼働コードを証明しません。
 

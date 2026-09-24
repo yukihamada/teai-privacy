@@ -1,5 +1,5 @@
 /** Pure, network-free text guard. Input is normalized to NFKC before inspection. */
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 export const MAX_BYTES = 256 * 1024;
 
 export class PrivacyError extends Error {
@@ -23,7 +23,25 @@ const SECRETS = [
   /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@:]+:[^\s/@]+@/i,
 ];
 const INVISIBLE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
-const EMAIL = /[a-z0-9.!#$%&'*+\/=?^_`{|}~-]{1,64}@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?){1,10}/gi;
+const EMAIL_LOCAL = /[a-z0-9.!#$%&'*+\/=?^_`{|}~-]{1,64}$/i;
+const EMAIL_DOMAIN = /[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?){1,10}/iy;
+// Equivalent to the former global email regex, but never retries at every
+// character of a long non-email token. Bounds and global non-overlap are kept.
+function emailSpans(text, add) {
+  let cursor = 0;
+  for (let at = text.indexOf('@'); at !== -1; at = text.indexOf('@', cursor)) {
+    const window = text.slice(Math.max(cursor, at - 64), at);
+    const local = EMAIL_LOCAL.exec(window);
+    EMAIL_DOMAIN.lastIndex = at + 1;
+    // JS `$` also matches before a terminal newline; an email local part cannot.
+    const domain = local && local.index + local[0].length === window.length && EMAIL_DOMAIN.exec(text);
+    cursor = at + 1;
+    if (domain) {
+      cursor += domain[0].length;
+      add({ start: at - local[0].length, end: cursor, kind: 'email' });
+    }
+  }
+}
 // Deliberately conservative: Japanese domestic numbers and explicit international + numbers.
 const PHONE = /(?<![\p{L}\p{N}])(?:\+[1-9][0-9 .()-]{5,24}[0-9]|0[1-9][0-9-]{7,12}[0-9])(?![\p{L}\p{N}])/gu;
 
@@ -81,7 +99,7 @@ export function protectChat(input, configuredTerms = []) {
       let start = 0, found;
       while ((found = text.indexOf(term, start)) !== -1) { add({ start: found, end: found + term.length, kind: 'term' }); start = found + term.length; }
     }
-    for (const match of text.matchAll(EMAIL)) add({ start: match.index, end: match.index + match[0].length, kind: 'email' });
+    emailSpans(text, add);
     for (const match of text.matchAll(PHONE)) {
       const digits = match[0].replace(/\D/g, '');
       if (match[0].startsWith('+') ? digits.length >= 7 && digits.length <= 15 : (digits.length === 10 || digits.length === 11)) add({ start: match.index, end: match.index + match[0].length, kind: 'phone' });
