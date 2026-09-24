@@ -1,0 +1,5 @@
+{
+  "model": "fixture-model",
+  "messages": [{ "role": "user", "content": "Draft a reply to alice@example.com." }],
+  "max_tokens": 200
+}
